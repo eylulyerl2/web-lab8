@@ -1,7 +1,9 @@
 import express from 'express';
+import path from 'node:path';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = path.join(import.meta.dirname, 'public');
 
 const COURSES = [
   { id: 1, title: 'Introduction to Programming', credits: 6 },
@@ -26,6 +28,9 @@ function requestCounter(req, res, next) {
 // Middleware is registered before the routes so it sees every request.
 app.use(logger);
 app.use(requestCounter);
+
+// Serves public/index.html at "/" and the CSS/JS files next to it.
+app.use(express.static(PUBLIC_DIR));
 
 app.get('/hello', (req, res) => {
   res.type('text/plain').send("Hello from Eylül Yerli's server");
