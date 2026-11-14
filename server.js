@@ -11,13 +11,21 @@ const COURSES = [
 
 const ROBOTS_TXT = 'User-agent: *\nDisallow: /api/\n';
 
+let requestsServed = 0;
+
 function logger(req, res, next) {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 }
 
+function requestCounter(req, res, next) {
+  requestsServed += 1;
+  next();
+}
+
 // Middleware is registered before the routes so it sees every request.
 app.use(logger);
+app.use(requestCounter);
 
 app.get('/hello', (req, res) => {
   res.type('text/plain').send("Hello from Eylül Yerli's server");
@@ -56,6 +64,10 @@ app.post('/api/subscribe', (req, res) => {
 
 app.get('/api/admin', (req, res) => {
   res.status(403).json({ error: 'Forbidden' });
+});
+
+app.get('/api/stats', (req, res) => {
+  res.json({ requestsServed });
 });
 
 // 404 fallback: registered last so it never hides a real route.
