@@ -48,6 +48,26 @@ Then open <http://localhost:3000>.
 | `GET /api/stats` | `200`, `{ "requestsServed": <number> }` |
 | anything else | `404`, JSON for `/api/...` paths, plain text otherwise |
 
+## Middleware and Order
+
+The order in `server.js` is:
+
+1. `logger` – prints `[timestamp] METHOD URL` for every request, then calls `next()`.
+2. `requestCounter` – adds 1 to `requestsServed`, then calls `next()`.
+3. `express.static(public/)` – serves `index.html`, `styles.css` and `app.js`.
+4. The routes (`/hello`, `/robots.txt`, `/old-page`, `/api/...`).
+5. The 404 fallback – a path-less `app.use()` registered last.
+
+**Why this order:** Express runs middleware and routes from top to bottom. The logger is first so that every request is printed, even ones that end in a 404. The counter is second so it also sees every request. The static files come before the routes so the page loads without going through any route. The 404 fallback is last because it matches every request; anywhere higher, it would hide the real routes (see Reasoning Question 1).
+
+**Which requests are counted:** every request that reaches the server, because the counter runs before anything that can send a response. This includes:
+
+- API requests, including `/api/stats` itself (the number shown already includes the request that asked for it),
+- the static files of the page (`/`, `/styles.css`, `/app.js`),
+- 404 responses, including `/favicon.ico`, which the browser requests automatically.
+
+I chose this because the counter is meant to show how many requests the server has *served* in total, and a 404 or a CSS file is still work the server did. The counter lives only in memory, so it starts again at 0 whenever the server restarts.
+
 ## Testing Evidence
 
 All outputs below were captured with `curl.exe --include` in PowerShell (`curl.exe` is used because `curl` is an alias for a different command in PowerShell).
@@ -148,3 +168,33 @@ Keep-Alive: timeout=5
 
 404 - Page not found
 ```
+
+## Reasoning Questions
+
+### 1. Route order
+
+**Experiment:** I moved the 404 fallback from the bottom of `server.js` to just after the two middleware functions, above `express.static` and all routes. After that, every request got a 404: `/` showed `404 - Page not found` instead of the page, `/hello` also showed `404 - Page not found`, and `/api/courses` returned `{"error":"Not found"}`. The logger still printed every request, because it is registered above the fallback.
+
+**Why:** Express checks middleware and routes in the order they are registered. A path-less `app.use()` matches every request, and the fallback sends a response without calling `next()`, so nothing below it ever runs. That is why it has to be registered last. After the experiment I moved it back to the bottom.
+
+### 2. Middleware
+
+**Experiment:** I commented out `next()` in the logger. When I opened `/hello` in the browser, the tab kept loading forever and the page never appeared. The server terminal still printed `[...] GET /hello` for every attempt. With `curl.exe --include --max-time 10 http://localhost:3000/api/courses` I got `curl: (28) Operation timed out after 10009 milliseconds with 0 bytes received`.
+
+**Why:** The logger neither sent a response nor called `next()`, so the request stopped there. The counter, the static files and the routes were never reached, and the client waited for an answer that never came. Every middleware must either finish the response or pass control on with `next()`. After the experiment I put `next()` back.
+
+### 3. Status codes
+
+`201 Created` tells the client that the request did more than succeed: it created something new, here a subscription. `200 OK` only means "it worked", so `201` describes the result more precisely. A missing page must be `404` because programs read the status code, not the text. With `200` plus an error message, `fetch` would report `response.ok === true` (my page would show it in green), browsers and search engines would treat the error page as real content, and tools like `curl` scripts could not tell that something went wrong.
+
+### 4. Configuration
+
+The port depends on where the server runs, not on the code. Hosting platforms usually decide the port themselves and pass it in the `PORT` environment variable, and on my own computer port 3000 might already be used by another program. Reading `process.env.PORT` lets the same code run anywhere without editing it, and the fallback `3000` keeps local development simple.
+
+### 5. Dependencies
+
+`node_modules` is not committed because it is very large, it is generated automatically, and it can contain files that are specific to one operating system. Everything needed to rebuild it is already in `package.json` and `package-lock.json`. After cloning the repository, a teammate must run `npm install` in the project folder (this installs the exact versions from `package-lock.json`) and then start the server with `npm start` or `npm run dev`.
+
+### 6. Same origin
+
+If `index.html` were opened directly from disk, its address would be `file:///C:/.../index.html`, so a relative URL like `/api/courses` would point to a file on the disk instead of the server, and the requests would fail. Even if I changed the URLs to `http://localhost:3000/api/...`, the page (`file://`) and the API (`http://localhost:3000`) would have different origins, and the browser would block reading the responses. This restriction is called the **same-origin policy**; the server could only allow it with CORS headers. Serving the page from the same server avoids the problem, because the page and the API share one origin.
