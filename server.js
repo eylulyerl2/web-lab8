@@ -50,6 +50,15 @@ app.get('/api/admin', (req, res) => {
   res.status(403).json({ error: 'Forbidden' });
 });
 
+// 404 fallback: registered last so it never hides a real route.
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'Not found' });
+  } else {
+    res.status(404).type('text/plain').send('404 - Page not found');
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
