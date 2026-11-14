@@ -11,6 +11,14 @@ const COURSES = [
 
 const ROBOTS_TXT = 'User-agent: *\nDisallow: /api/\n';
 
+function logger(req, res, next) {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+}
+
+// Middleware is registered before the routes so it sees every request.
+app.use(logger);
+
 app.get('/hello', (req, res) => {
   res.type('text/plain').send("Hello from Eylül Yerli's server");
 });
