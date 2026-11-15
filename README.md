@@ -198,3 +198,43 @@ The port depends on where the server runs, not on the code. Hosting platforms us
 ### 6. Same origin
 
 If `index.html` were opened directly from disk, its address would be `file:///C:/.../index.html`, so a relative URL like `/api/courses` would point to a file on the disk instead of the server, and the requests would fail. Even if I changed the URLs to `http://localhost:3000/api/...`, the page (`file://`) and the API (`http://localhost:3000`) would have different origins, and the browser would block reading the responses. This restriction is called the **same-origin policy**; the server could only allow it with CORS headers. Serving the page from the same server avoids the problem, because the page and the API share one origin.
+
+## Self-Study Notes
+
+### Reading the Node version and the uptime
+From the Node.js documentation of the `process` object I learned that `process.version` returns the running Node version as a string (for example `"v24.15.0"`) and `process.uptime()` returns how many seconds the process has been running. `uptime()` returns a decimal number, so I use `Math.floor()` to send whole seconds in `/api/status`. Because these are read on every request, the values are always real: refreshing `/api/status` shows `uptimeSeconds` growing.
+
+### Sending a specific content type
+`res.send()` with a string sets `Content-Type: text/html` by default. From the Express documentation I found `res.type()`, which sets the `Content-Type` header. I use `res.type('text/plain')` for `/hello`, `/robots.txt` and the non-API 404, and checked with `curl --include` that the header really is `text/plain; charset=utf-8`. For JSON routes I always use `res.json()`, which sets `application/json` automatically.
+
+### Showing JSON neatly in the page
+In `app.js` I read every response as text with `response.text()` and then try `JSON.parse()`. If it works, I format it with `JSON.stringify(value, null, 2)`: the third argument is the number of spaces used for indentation, so the JSON appears on several lines inside the `<pre>` element. If parsing fails (for example a plain-text response), I show the text as it is.
+
+### Finding the `public` folder from any working directory
+ES modules do not have `__dirname`. Node provides `import.meta.dirname`, the folder of the current file. I build the path with `path.join(import.meta.dirname, 'public')`, so `express.static` always finds the folder next to `server.js`. I tested it by starting the server from the Desktop with `node assignment8/server.js`, and the page still loaded with its styles.
+
+### The 404 fallback in Express 5
+Express 5 no longer accepts the old wildcard `app.get('*', ...)`. A middleware registered with `app.use()` and no path matches every request, so I use that as the last handler.
+
+### Automatic restarts without nodemon
+Node has a built-in `--watch` flag. The `dev` script runs `node --watch server.js`, and every time I save a file the terminal shows `Restarting 'server.js'`.
+
+## Challenges
+
+**1. A file that was not saved before committing.**
+I changed the author in `package.json` to my full name but committed before saving, so GitHub still showed the old value. I noticed the white dot on the editor tab, saved the file and made a separate small commit. Now I check that no tab has a dot before running `git add`.
+
+**2. "This site can't be reached".**
+A few times the browser showed `ERR_CONNECTION_REFUSED`. The server was not running, because I had stopped it or typed other commands into its terminal. I now keep one terminal only for `npm run dev` and use a second terminal for Git and curl.
+
+**3. The README ended up in the wrong folder.**
+I accidentally created `README.md` inside `public/`, so `git add README.md` failed with "pathspec did not match any files". I moved it to the project root with `Move-Item public\README.md README.md`. In `public/` it would also have been reachable from the browser.
+
+**4. curl in PowerShell.**
+In PowerShell, `curl` is an alias for a different command (`Invoke-WebRequest`) with different options. I used `curl.exe` to run the real curl program.
+
+**5. Testing the network error.**
+To test that the page does not crash when the server is down, I first stopped the server and refreshed the page, which only showed the browser's own error. The correct test was to keep the page open, stop the server and then click a button: the page showed `Network error` / `Failed to fetch` in red and kept working.
+
+**6. Timestamps in UTC.**
+The log times were 3 hours behind my clock. `toISOString()` always prints UTC (the `Z` at the end), and Turkey is UTC+3, so this is expected.
